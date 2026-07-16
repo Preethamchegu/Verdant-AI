@@ -27,6 +27,12 @@ interface Reminder {
   plant_species?: string;
 }
 
+interface ImpactSummary {
+  total_plants: number;
+  total_carbon_co2_kg: number;
+  total_water_saved_liters: number;
+}
+
 export default function DashboardPage() {
   const { user, token, logout, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -37,14 +43,111 @@ export default function DashboardPage() {
   const [remindersLoading, setRemindersLoading] = useState<boolean>(true);
   const [completeSuccess, setCompleteSuccess] = useState<string | null>(null);
   
+  const [activeLocation, setActiveLocation] = useState<string>("");
+  const [showLocationModal, setShowLocationModal] = useState<boolean>(false);
+  const [locationInput, setLocationInput] = useState<string>("");
+  const [locLoading, setLocLoading] = useState<boolean>(false);
+  const [weatherInfo, setWeatherInfo] = useState<{ temp: number; humidity: number } | null>(null);
+  const [impact, setImpact] = useState<ImpactSummary | null>(null);
+  
   const [error, setError] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState<boolean>(false);
+
+  const fetchWeatherInfo = async (locationStr: string) => {
+    if (!token || !locationStr) return;
+    try {
+      const res = await fetch(`http://127.0.0.1:8001/plants/weather/current?location=${encodeURIComponent(locationStr)}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setWeatherInfo({ temp: data.temp, humidity: data.humidity });
+      }
+    } catch (err) {
+      console.error("Failed to fetch weather info", err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeLocation && token) {
+      fetchWeatherInfo(activeLocation);
+    }
+  }, [activeLocation, token]);
 
   useEffect(() => {
     if (!authLoading && !user) {
       router.push("/login");
     }
   }, [user, authLoading, router]);
+
+  const resolvePincode = async (pincode: string): Promise<string> => {
+    const trimmed = pincode.trim();
+    if (/^\d{5}$/.test(trimmed)) {
+      try {
+        const res = await fetch(`https://api.zippopotam.us/us/${trimmed}`);
+        if (res.ok) {
+          const data = await res.json();
+          const place = data.places[0];
+          return `${place["place name"]}, ${place["state abbreviation"]}`;
+        }
+      } catch (err) { console.error(err); }
+    } else if (/^\d{6}$/.test(trimmed)) {
+      try {
+        const res = await fetch(`https://api.postalpincode.in/pincode/${trimmed}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data[0] && data[0].PostOffice) {
+            const po = data[0].PostOffice[0];
+            return `${po.District}, ${po.State}`;
+          }
+        }
+      } catch (err) { console.error(err); }
+    }
+    return trimmed;
+  };
+
+  const detectIPLocation = async () => {
+    try {
+      const res = await fetch("https://ipapi.co/json/");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.city) {
+          const locStr = `${data.city}, ${data.country_code || data.country_name}`;
+          localStorage.setItem("user_location", locStr);
+          setActiveLocation(locStr);
+        }
+      }
+    } catch (err) {
+      console.error("Auto-IP Geolocation failed:", err);
+    }
+  };
+
+  const handleSaveLocation = async () => {
+    if (!locationInput.trim()) return;
+    setLocLoading(true);
+    try {
+      const resolved = await resolvePincode(locationInput);
+      localStorage.setItem("user_location", resolved);
+      setActiveLocation(resolved);
+      setShowLocationModal(false);
+      // Refresh reminders and impact
+      fetchReminders();
+      fetchImpactSummary();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLocLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const saved = localStorage.getItem("user_location");
+    if (saved) {
+      setActiveLocation(saved);
+    } else {
+      detectIPLocation();
+    }
+  }, []);
 
   // Fetch registered plants from backend
   const fetchPlants = async () => {
@@ -91,6 +194,24 @@ export default function DashboardPage() {
     }
   };
 
+  // Fetch impact summary from backend
+  const fetchImpactSummary = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch("http://127.0.0.1:8001/plants/impact/summary", {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setImpact(data);
+      }
+    } catch (err) {
+      console.error("Failed to load impact summary", err);
+    }
+  };
+
   const handleCompleteReminder = async (plantId: number, reminderId: number, type: string) => {
     if (!token) return;
     try {
@@ -106,6 +227,7 @@ export default function DashboardPage() {
         // Refresh data
         fetchPlants();
         fetchReminders();
+        fetchImpactSummary();
       } else {
         alert("Failed to complete task.");
       }
@@ -119,6 +241,7 @@ export default function DashboardPage() {
     if (user && token) {
       fetchPlants();
       fetchReminders();
+      fetchImpactSummary();
     }
   }, [user, token]);
 
@@ -193,6 +316,12 @@ export default function DashboardPage() {
     return acc + (p.age * 0.005);
   }, 0);
 
+  // Filter reminders to only show those that are due today or overdue
+  const activeReminders = reminders.filter(rem => {
+    const dueInfo = getDueText(rem.next_due);
+    return dueInfo.text.toLowerCase().includes("today") || dueInfo.text.toLowerCase().includes("overdue");
+  });
+
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       {/* Header */}
@@ -216,11 +345,52 @@ export default function DashboardPage() {
             color: "var(--text-secondary)",
             marginLeft: "0.5rem"
           }}>Dashboard</span>
+          
+          <button 
+            onClick={() => {
+              setLocationInput(activeLocation);
+              setShowLocationModal(true);
+            }}
+            style={{
+              background: "none",
+              border: "1px solid var(--border-color)",
+              borderRadius: "20px",
+              padding: "0.25rem 0.75rem",
+              fontSize: "0.85rem",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.3rem",
+              marginLeft: "1rem",
+              color: "var(--text-primary)",
+              backgroundColor: "var(--bg-color)",
+              transition: "border-color 0.2s"
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.borderColor = "var(--secondary-color)")}
+            onMouseOut={(e) => (e.currentTarget.style.borderColor = "var(--border-color)")}
+          >
+            📍 {activeLocation || "Detect Location..."}
+          </button>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-          <span style={{ fontSize: "0.95rem", color: "var(--text-secondary)" }}>
-            Logged in as: <strong>{user.email}</strong>
-          </span>
+          {weatherInfo && (
+            <span style={{ 
+              fontSize: "0.85rem", 
+              backgroundColor: "var(--border-color)", 
+              padding: "0.3rem 0.65rem", 
+              borderRadius: "15px",
+              color: "var(--text-primary)",
+              fontWeight: "bold",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.4rem",
+              marginRight: "0.5rem"
+            }}>
+              <span>🌡️ {Math.round(weatherInfo.temp)}°C</span>
+              <span style={{ color: "var(--text-secondary)", fontWeight: "normal" }}>|</span>
+              <span>💧 {Math.round(weatherInfo.humidity)}%</span>
+            </span>
+          )}
           
           <button
             onClick={toggleDarkMode}
@@ -273,7 +443,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Stats Metrics Cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1.5rem" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1.5rem" }}>
           <div className="card" style={{ marginBottom: 0 }}>
             <h3 style={{ fontSize: "0.9rem", color: "var(--text-secondary)", marginBottom: "0.5rem", fontWeight: "normal" }}>Registered Plants</h3>
             <div style={{ fontSize: "2rem", fontWeight: "bold", color: "var(--primary-color)" }}>{totalPlants}</div>
@@ -291,10 +461,22 @@ export default function DashboardPage() {
           </div>
 
           <div className="card" style={{ marginBottom: 0 }}>
-            <h3 style={{ fontSize: "0.9rem", color: "var(--text-secondary)", marginBottom: "0.5rem", fontWeight: "normal" }}>CO₂ Absorbed Estimate</h3>
-            <div style={{ fontSize: "2rem", fontWeight: "bold", color: "var(--secondary-color)" }}>{totalCarbonCO2.toFixed(3)} kg</div>
+            <h3 style={{ fontSize: "0.9rem", color: "var(--text-secondary)", marginBottom: "0.5rem", fontWeight: "normal" }}>CO₂ Absorbed</h3>
+            <div style={{ fontSize: "2rem", fontWeight: "bold", color: "var(--secondary-color)" }}>
+              {impact ? impact.total_carbon_co2_kg.toFixed(3) : "0.000"} kg
+            </div>
             <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-              Formula-based on plant age
+              Calculated by species rate
+            </span>
+          </div>
+
+          <div className="card" style={{ marginBottom: 0 }}>
+            <h3 style={{ fontSize: "0.9rem", color: "var(--text-secondary)", marginBottom: "0.5rem", fontWeight: "normal" }}>Water Saved</h3>
+            <div style={{ fontSize: "2rem", fontWeight: "bold", color: "#3a86c8" }}>
+              {impact ? impact.total_water_saved_liters.toFixed(1) : "0.0"} L
+            </div>
+            <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+              Precision weather saving
             </span>
           </div>
         </div>
@@ -436,14 +618,14 @@ export default function DashboardPage() {
 
             {remindersLoading ? (
               <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>Loading care schedule...</p>
-            ) : reminders.length === 0 ? (
+            ) : activeReminders.length === 0 ? (
               <div style={{ textAlign: "center", padding: "1.5rem 0" }}>
                 <span style={{ fontSize: "2rem" }}>☀️</span>
                 <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginTop: "0.5rem" }}>All plants are fully cared for! No pending tasks.</p>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
-                {reminders.map((rem) => {
+                {activeReminders.map((rem) => {
                   const dueInfo = getDueText(rem.next_due);
                   let icon = "💧";
                   if (rem.type === "fertilizer") icon = "🧪";
@@ -515,17 +697,78 @@ export default function DashboardPage() {
 
       </div>
 
-      {/* Footer */}
-      <footer style={{
-        borderTop: "1px solid var(--border-color)",
-        padding: "1rem 2rem",
-        textAlign: "center",
-        fontSize: "0.85rem",
-        color: "var(--text-secondary)",
-        backgroundColor: "var(--card-bg)"
-      }}>
-        Verdant AI • Day 1 Hackathon Garden • Protect Plant Life
-      </footer>
+      {/* Location Selection Modal Overlay */}
+      {showLocationModal && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.5)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1000
+        }}>
+          <div className="card" style={{ width: "90%", maxWidth: "400px", marginBottom: 0, padding: "2rem", borderLeft: "5px solid var(--primary-color)" }}>
+            <h2 style={{ color: "var(--primary-color)", fontSize: "1.3rem", marginBottom: "0.5rem" }}>📍 Set Your Location</h2>
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", marginBottom: "1.5rem", lineHeight: "1.4" }}>
+              Enter your City name or Pincode/Zip Code. We use this to fetch local outdoor weather and calibrate watering/misting schedules.
+            </p>
+            
+            <input
+              type="text"
+              placeholder="e.g. Bengaluru, 560001, Chicago"
+              value={locationInput}
+              onChange={(e) => setLocationInput(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "0.75rem",
+                borderRadius: "6px",
+                border: "1px solid var(--border-color)",
+                backgroundColor: "var(--bg-color)",
+                color: "var(--text-primary)",
+                marginBottom: "1.5rem",
+                fontSize: "1rem"
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSaveLocation();
+              }}
+            />
+            
+            <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setShowLocationModal(false)}
+                className="button"
+                style={{
+                  backgroundColor: "transparent",
+                  color: "var(--text-secondary)",
+                  border: "1px solid var(--border-color)",
+                  padding: "0.5rem 1rem",
+                  fontSize: "0.9rem"
+                }}
+              >
+                Cancel
+              </button>
+              
+              <button
+                onClick={handleSaveLocation}
+                disabled={locLoading}
+                className="button"
+                style={{
+                  padding: "0.5rem 1rem",
+                  fontSize: "0.9rem"
+                }}
+              >
+                {locLoading ? "Saving..." : "Save Location"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      
     </div>
   );
 }

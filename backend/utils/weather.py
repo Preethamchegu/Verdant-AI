@@ -46,8 +46,16 @@ def get_weather_for_location(location_str: str) -> dict:
 
     # 2. Query OpenWeather API
     try:
-        encoded_city = urllib.parse.quote(clean_location)
-        url = f"https://api.openweathermap.org/data/2.5/weather?q={encoded_city}&appid={api_key}&units=metric"
+        if clean_location.isdigit():
+            if len(clean_location) == 5:
+                url = f"https://api.openweathermap.org/data/2.5/weather?zip={clean_location},US&appid={api_key}&units=metric"
+            elif len(clean_location) == 6:
+                url = f"https://api.openweathermap.org/data/2.5/weather?zip={clean_location},IN&appid={api_key}&units=metric"
+            else:
+                url = f"https://api.openweathermap.org/data/2.5/weather?zip={clean_location}&appid={api_key}&units=metric"
+        else:
+            encoded_city = urllib.parse.quote(clean_location)
+            url = f"https://api.openweathermap.org/data/2.5/weather?q={encoded_city}&appid={api_key}&units=metric"
         
         req = urllib.request.Request(
             url,

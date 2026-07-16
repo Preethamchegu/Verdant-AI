@@ -155,34 +155,25 @@ def check_and_apply_care_penalties(plant_id: int, db: Session) -> int:
     Checks if care reminders are overdue and updates the plant's health score.
     Returns the current/new health score.
     """
-    from database.models import Reminder, DiseaseHistory, HealthScore
+    from database.models import Reminder, HealthScore
     
+    # Get the latest explicit score (from AI diagnosis or manual completion events)
+    # We ignore care adherence automatic adjustment records to prevent feedback loops.
+    latest_explicit = db.exec(
+        select(HealthScore)
+        .where(
+            HealthScore.plant_id == plant_id,
+            ~HealthScore.reasoning.like("Health score adjusted based on care%")
+        )
+        .order_by(HealthScore.calculated_at.desc())
+    ).first()
+    
+    base_score = latest_explicit.score if latest_explicit else 100
+
     # Get all reminders
     reminders = db.exec(select(Reminder).where(Reminder.plant_id == plant_id)).all()
     if not reminders:
-        # If no reminders are generated yet, return latest health score or 100
-        latest_health = db.exec(
-            select(HealthScore)
-            .where(HealthScore.plant_id == plant_id)
-            .order_by(HealthScore.calculated_at.desc())
-        ).first()
-        return latest_health.score if latest_health else 100
-
-    # Calculate base score from latest AI diagnosis scan
-    latest_diagnosis = db.exec(
-        select(DiseaseHistory)
-        .where(DiseaseHistory.plant_id == plant_id)
-        .order_by(DiseaseHistory.date_detected.desc())
-    ).first()
-    
-    if latest_diagnosis:
-        is_healthy = "healthy" in latest_diagnosis.condition.lower()
-        if is_healthy:
-            base_score = 100
-        else:
-            base_score = max(10, int(100 - (latest_diagnosis.confidence * 100)))
-    else:
-        base_score = 100
+        return base_score
 
     # Calculate total penalty from overdue reminders
     total_penalty = 0
@@ -408,3 +399,136 @@ def get_plant_timeline(
     events.sort(key=lambda x: x.date, reverse=True)
     
     return events
+
+class ImpactResponse(BaseModel):
+    plant_id: int
+    carbon_co2_kg: float
+    water_saved_liters: float
+    c_rate: float
+    water_saved_per_day: float
+    formula_details: str
+
+class ImpactSummaryResponse(BaseModel):
+    total_plants: int
+    total_carbon_co2_kg: float
+    total_water_saved_liters: float
+
+@router.get("/impact/summary", response_model=ImpactSummaryResponse)
+def get_user_impact_summary(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_session)
+):
+    plants = db.exec(select(Plant).where(Plant.user_id == current_user.id)).all()
+    if not plants:
+        return ImpactSummaryResponse(total_plants=0, total_carbon_co2_kg=0.0, total_water_saved_liters=0.0)
+        
+    total_carbon = 0.0
+    total_water = 0.0
+    
+    from database.models import Reminder
+    
+    for p in plants:
+        species_lower = p.species.lower()
+        if "succulent" in species_lower or "cactus" in species_lower or "echeveria" in species_lower:
+            c_rate = 0.001
+        elif "basil" in species_lower or "mint" in species_lower or "herb" in species_lower or "tenuiflorum" in species_lower:
+            c_rate = 0.003
+        elif "fern" in species_lower or "monstera" in species_lower or "palm" in species_lower or "ivy" in species_lower:
+            c_rate = 0.008
+        elif "tomato" in species_lower or "pepper" in species_lower or "crop" in species_lower:
+            c_rate = 0.015
+        else:
+            c_rate = 0.005
+            
+        carbon = p.age * c_rate
+        
+        # Water savings
+        watering_reminder = db.exec(
+            select(Reminder)
+            .where(Reminder.plant_id == p.id, Reminder.type == "watering")
+        ).first()
+        
+        default_interval = 4
+        if "succulent" in species_lower or "cactus" in species_lower:
+            default_interval = 12
+        elif "fern" in species_lower or "monstera" in species_lower:
+            default_interval = 6
+        elif "tomato" in species_lower or "pepper" in species_lower:
+            default_interval = 4
+            
+        current_interval = watering_reminder.interval_days if watering_reminder else default_interval
+        savings_ratio = max(0.0, (1.0 / default_interval) - (1.0 / current_interval))
+        weather_savings = savings_ratio * 0.5 * p.age
+        
+        water_saved = (0.15 * p.age) + weather_savings
+        
+        total_carbon += carbon
+        total_water += water_saved
+        
+    return ImpactSummaryResponse(
+        total_plants=len(plants),
+        total_carbon_co2_kg=round(total_carbon, 3),
+        total_water_saved_liters=round(total_water, 1)
+    )
+
+@router.get("/{plant_id}/impact", response_model=ImpactResponse)
+def get_plant_impact(
+    plant_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_session)
+):
+    plant = db.exec(select(Plant).where(Plant.id == plant_id, Plant.user_id == current_user.id)).first()
+    if not plant:
+        raise HTTPException(status_code=404, detail="Plant not found or access denied.")
+        
+    species_lower = plant.species.lower()
+    if "succulent" in species_lower or "cactus" in species_lower or "echeveria" in species_lower:
+        c_rate = 0.001
+        plant_type = "Succulent"
+        default_interval = 12
+    elif "basil" in species_lower or "mint" in species_lower or "herb" in species_lower or "tenuiflorum" in species_lower:
+        c_rate = 0.003
+        plant_type = "Herb/Spice"
+        default_interval = 4
+    elif "fern" in species_lower or "monstera" in species_lower or "palm" in species_lower or "ivy" in species_lower:
+        c_rate = 0.008
+        plant_type = "Foliage/Tropical"
+        default_interval = 6
+    elif "tomato" in species_lower or "pepper" in species_lower or "crop" in species_lower:
+        c_rate = 0.015
+        plant_type = "Crop/Vegetable"
+        default_interval = 4
+    else:
+        c_rate = 0.005
+        plant_type = "Standard Botanical"
+        default_interval = 4
+        
+    carbon = plant.age * c_rate
+    
+    # Calculate water saved
+    from database.models import Reminder
+    watering_reminder = db.exec(
+        select(Reminder)
+        .where(Reminder.plant_id == plant.id, Reminder.type == "watering")
+    ).first()
+    
+    current_interval = watering_reminder.interval_days if watering_reminder else default_interval
+    savings_ratio = max(0.0, (1.0 / default_interval) - (1.0 / current_interval))
+    weather_savings = savings_ratio * 0.5 * plant.age
+    
+    water_saved_per_day = 0.15 + (savings_ratio * 0.5)
+    water_saved = (0.15 * plant.age) + weather_savings
+    
+    formula_details = (
+        f"Carbon CO2 absorbed = age ({plant.age} days) * species rate ({c_rate} kg/day for {plant_type}). "
+        f"Water saved = base efficiency (0.15 L/day) * age + weather-adjusted watering savings ratio ({savings_ratio:.3f} L/day) * age."
+    )
+    
+    return ImpactResponse(
+        plant_id=plant.id,
+        carbon_co2_kg=round(carbon, 3),
+        water_saved_liters=round(water_saved, 2),
+        c_rate=c_rate,
+        water_saved_per_day=round(water_saved_per_day, 3),
+        formula_details=formula_details
+    )

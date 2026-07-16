@@ -106,6 +106,11 @@ Satellite vegetation monitoring
 7. *Gemini 429 Quota Exhaustion*: The free-tier user limits for `gemini-3.5-flash` are extremely low (only 20 requests per day). Users hit `429 Resource Exhausted` error. Resolved by restructuring the backend fallback models to prioritize `gemini-3.1-flash-lite` (which offers a much higher limit of 500 requests per day) and adding a 5-second automatic retry backoff.
 8. *Hugging Face Disease Model Verification*: Verified the Hugging Face `linkanjarad/mobilenet_v2_1.0_224-plant-disease-identification` model scanner locally. Configured it to fetch and encode images properly, handle predictions, correctly map labels (e.g. "Bacterial Spot" on a test Monstera leaf scan), and successfully flag low-confidence predictions (< 70%) for botanical expert review.
 
+
+**[Block 5 Complete]** Developed the core care reminders scheduler with a rule-based engine (`planner.py`) driven by species, season, and real-time/fallback weather logic (`weather.py`). Set up overdue penalty recalculation routines inside `check_and_apply_care_penalties` (bypassing automated adjustment loops to prevent score fluctuations). Implemented dashboard tasks list and details page checklists with completion safety rules.
+
+**[Block 6 Complete]** Created mathematical carbon absorption (CO2 kg) and water conservation (liters saved) calculations tied to plant species and weather reminder intervals deviation. Added endpoints `/plants/impact/summary` and `/plants/{plant_id}/impact`. Updated frontend navbar layout with real-time temperature/humidity weather stats, removed email labels, restructured the dashboard stats metrics into a premium 4-column cards grid, and added local expert search geolocated on Google Maps.
+
 ---
 
 Update Rule

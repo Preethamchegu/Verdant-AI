@@ -208,3 +208,11 @@ def get_all_user_reminders(
     # Sort so that overdue/soon-due tasks appear first
     response.sort(key=lambda x: x.next_due)
     return response
+
+@router.get("/weather/current")
+def get_current_weather(
+    location: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_session)
+):
+    return get_weather_for_location(location)

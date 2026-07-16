@@ -51,7 +51,7 @@ export default function PlantDetailPage({ params }: PageProps) {
   const resolvedParams = use(params);
   const plantId = resolvedParams.id;
   
-  const { user, token, loading: authLoading } = useAuth();
+  const { user, token, logout, loading: authLoading } = useAuth();
   const router = useRouter();
 
   // Core data states
@@ -67,11 +67,132 @@ export default function PlantDetailPage({ params }: PageProps) {
   const [scanResult, setScanResult] = useState<DiagnosisResult | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
 
+interface PlantImpact {
+  plant_id: number;
+  carbon_co2_kg: number;
+  water_saved_liters: number;
+  c_rate: number;
+  water_saved_per_day: number;
+  formula_details: string;
+}
+
+// Location & Dark Mode states
+  const [activeLocation, setActiveLocation] = useState<string>("");
+  const [showLocationModal, setShowLocationModal] = useState<boolean>(false);
+  const [locationInput, setLocationInput] = useState<string>("");
+  const [locLoading, setLocLoading] = useState<boolean>(false);
+  const [weatherInfo, setWeatherInfo] = useState<{ temp: number; humidity: number } | null>(null);
+  const [impact, setImpact] = useState<PlantImpact | null>(null);
+  const [impactLoading, setImpactLoading] = useState<boolean>(true);
+  const [darkMode, setDarkMode] = useState<boolean>(false);
+
+  const fetchWeatherInfo = async (locationStr: string) => {
+    if (!token || !locationStr) return;
+    try {
+      const res = await fetch(`http://127.0.0.1:8001/plants/weather/current?location=${encodeURIComponent(locationStr)}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setWeatherInfo({ temp: data.temp, humidity: data.humidity });
+      }
+    } catch (err) {
+      console.error("Failed to fetch weather info", err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeLocation && token) {
+      fetchWeatherInfo(activeLocation);
+    }
+  }, [activeLocation, token]);
+
   useEffect(() => {
     if (!authLoading && !user) {
       router.push("/login");
     }
   }, [user, authLoading, router]);
+
+  useEffect(() => {
+    setDarkMode(document.body.classList.contains("dark-mode"));
+    const saved = localStorage.getItem("user_location");
+    if (saved) {
+      setActiveLocation(saved);
+    } else {
+      detectIPLocation();
+    }
+  }, []);
+
+  const toggleDarkMode = () => {
+    const nextDark = !darkMode;
+    setDarkMode(nextDark);
+    if (nextDark) {
+      document.body.classList.add("dark-mode");
+      document.body.classList.remove("light-mode");
+    } else {
+      document.body.classList.add("light-mode");
+      document.body.classList.remove("dark-mode");
+    }
+  };
+
+  const resolvePincode = async (pincode: string): Promise<string> => {
+    const trimmed = pincode.trim();
+    if (/^\d{5}$/.test(trimmed)) {
+      try {
+        const res = await fetch(`https://api.zippopotam.us/us/${trimmed}`);
+        if (res.ok) {
+          const data = await res.json();
+          const place = data.places[0];
+          return `${place["place name"]}, ${place["state abbreviation"]}`;
+        }
+      } catch (err) { console.error(err); }
+    } else if (/^\d{6}$/.test(trimmed)) {
+      try {
+        const res = await fetch(`https://api.postalpincode.in/pincode/${trimmed}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data[0] && data[0].PostOffice) {
+            const po = data[0].PostOffice[0];
+            return `${po.District}, ${po.State}`;
+          }
+        }
+      } catch (err) { console.error(err); }
+    }
+    return trimmed;
+  };
+
+  const detectIPLocation = async () => {
+    try {
+      const res = await fetch("https://ipapi.co/json/");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.city) {
+          const locStr = `${data.city}, ${data.country_code || data.country_name}`;
+          localStorage.setItem("user_location", locStr);
+          setActiveLocation(locStr);
+        }
+      }
+    } catch (err) {
+      console.error("Auto-IP Geolocation failed:", err);
+    }
+  };
+
+  const handleSaveLocation = async () => {
+    if (!locationInput.trim()) return;
+    setLocLoading(true);
+    try {
+      const resolved = await resolvePincode(locationInput);
+      localStorage.setItem("user_location", resolved);
+      setActiveLocation(resolved);
+      setShowLocationModal(false);
+      // Refresh reminders
+      fetchReminders();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLocLoading(false);
+    }
+  };
 
   const fetchPlantData = async () => {
     if (!token) return;
@@ -125,6 +246,24 @@ export default function PlantDetailPage({ params }: PageProps) {
     }
   };
 
+  const fetchPlantImpact = async () => {
+    if (!token) return;
+    setImpactLoading(true);
+    try {
+      const res = await fetch(`http://127.0.0.1:8001/plants/${plantId}/impact`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setImpact(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch plant impact:", err);
+    } finally {
+      setImpactLoading(false);
+    }
+  };
+
   const handleCompleteReminder = async (reminderId: number, type: string) => {
     if (!token) return;
     try {
@@ -136,6 +275,7 @@ export default function PlantDetailPage({ params }: PageProps) {
         // Refresh everything
         fetchPlantData();
         fetchReminders();
+        fetchPlantImpact();
       } else {
         alert("Failed to complete task.");
       }
@@ -149,6 +289,7 @@ export default function PlantDetailPage({ params }: PageProps) {
     if (user && token) {
       fetchPlantData();
       fetchReminders();
+      fetchPlantImpact();
     }
   }, [user, token, plantId]);
 
@@ -174,6 +315,7 @@ export default function PlantDetailPage({ params }: PageProps) {
       // Refresh plant health score, history timeline, and reminders
       fetchPlantData();
       fetchReminders();
+      fetchPlantImpact();
     } catch (err: any) {
       console.error(err);
       setScanError(err.message || "Diagnostic check failed.");
@@ -254,8 +396,106 @@ export default function PlantDetailPage({ params }: PageProps) {
   }
 
   return (
-    <div style={{ minHeight: "100vh", padding: "2rem 1.5rem", backgroundColor: "var(--bg-color)" }}>
-      <div style={{ maxWidth: "800px", margin: "0 auto" }}>
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      {/* Header */}
+      <header style={{
+        borderBottom: "1px solid var(--border-color)",
+        padding: "1rem 2rem",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        backgroundColor: "var(--card-bg)"
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <Link href="/" style={{ fontSize: "1.25rem", fontWeight: "bold", color: "var(--primary-color)", textDecoration: "none" }}>
+            🌿 Verdant AI
+          </Link>
+          <span style={{ 
+            fontSize: "0.75rem", 
+            backgroundColor: "var(--border-color)", 
+            padding: "0.15rem 0.5rem", 
+            borderRadius: "4px",
+            color: "var(--text-secondary)",
+            marginLeft: "0.5rem"
+          }}>Dashboard</span>
+          
+          <button 
+            onClick={() => {
+              setLocationInput(activeLocation);
+              setShowLocationModal(true);
+            }}
+            style={{
+              background: "none",
+              border: "1px solid var(--border-color)",
+              borderRadius: "20px",
+              padding: "0.25rem 0.75rem",
+              fontSize: "0.85rem",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.3rem",
+              marginLeft: "1rem",
+              color: "var(--text-primary)",
+              backgroundColor: "var(--bg-color)",
+              transition: "border-color 0.2s"
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.borderColor = "var(--secondary-color)")}
+            onMouseOut={(e) => (e.currentTarget.style.borderColor = "var(--border-color)")}
+          >
+            📍 {activeLocation || "Detect Location..."}
+          </button>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+          {weatherInfo && (
+            <span style={{ 
+              fontSize: "0.85rem", 
+              backgroundColor: "var(--border-color)", 
+              padding: "0.3rem 0.65rem", 
+              borderRadius: "15px",
+              color: "var(--text-primary)",
+              fontWeight: "bold",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.4rem",
+              marginRight: "0.5rem"
+            }}>
+              <span>🌡️ {Math.round(weatherInfo.temp)}°C</span>
+              <span style={{ color: "var(--text-secondary)", fontWeight: "normal" }}>|</span>
+              <span>💧 {Math.round(weatherInfo.humidity)}%</span>
+            </span>
+          )}
+          
+          <button
+            onClick={toggleDarkMode}
+            className="button"
+            style={{
+              backgroundColor: "transparent",
+              border: "1px solid var(--secondary-color)",
+              color: "var(--text-primary)",
+              padding: "0.4rem 0.8rem",
+              fontSize: "0.85rem"
+            }}
+            aria-label="Toggle Dark Mode"
+          >
+            {darkMode ? "☀️ Light" : "🌙 Dark"}
+          </button>
+
+          <button
+            onClick={logout}
+            className="button"
+            style={{
+              backgroundColor: "var(--danger-color)",
+              padding: "0.4rem 0.8rem",
+              fontSize: "0.85rem"
+            }}
+          >
+            Log Out
+          </button>
+        </div>
+      </header>
+
+      <div style={{ flex: 1, padding: "2rem 1.5rem", backgroundColor: "var(--bg-color)" }}>
+        <div style={{ maxWidth: "800px", margin: "0 auto" }}>
         
         {/* Navigation Breadcrumb */}
         <div style={{ marginBottom: "1.5rem" }}>
@@ -291,6 +531,17 @@ export default function PlantDetailPage({ params }: PageProps) {
               <span className="badge" style={{ backgroundColor: "var(--border-color)", color: "var(--text-primary)" }}>
                 📅 {Math.round(plant.age / 30) || 1} months old
               </span>
+              
+              {impact && (
+                <>
+                  <span className="badge" style={{ backgroundColor: "rgba(45, 106, 79, 0.12)", color: "var(--primary-color)", fontWeight: "bold" }}>
+                    🌱 CO₂: {impact.carbon_co2_kg.toFixed(3)} kg
+                  </span>
+                  <span className="badge" style={{ backgroundColor: "rgba(58, 134, 200, 0.12)", color: "#3a86c8", fontWeight: "bold" }}>
+                    💧 Water Saved: {impact.water_saved_liters.toFixed(2)} L
+                  </span>
+                </>
+              )}
             </div>
           </div>
 
@@ -316,6 +567,21 @@ export default function PlantDetailPage({ params }: PageProps) {
             <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Health Score</span>
           </div>
         </div>
+
+        {/* Environmental Impact Details */}
+        {impact && (
+          <div className="card" style={{ marginTop: "1.5rem", borderLeft: "5px solid var(--secondary-color)", marginBottom: 0 }}>
+            <h2 style={{ fontSize: "1.1rem", color: "var(--primary-color)", marginBottom: "0.5rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+              🌍 Environmental Footprint & Efficiency
+            </h2>
+            <p style={{ fontSize: "0.9rem", color: "var(--text-primary)", lineHeight: "1.4" }}>
+              By nurturing this <strong>{plant.species}</strong>, you have helped absorb CO₂ and conserve clean water through optimized seasonal weather watering.
+            </p>
+            <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginTop: "0.5rem", fontStyle: "italic" }}>
+              <strong>Calculation Details:</strong> {impact.formula_details}
+            </p>
+          </div>
+        )}
 
         {/* Diagnosis & Care Module */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "1.5rem", marginTop: "1.5rem" }}>
@@ -397,6 +663,32 @@ export default function PlantDetailPage({ params }: PageProps) {
                     <p style={{ margin: "0.15rem 0 0", color: "var(--text-primary)" }}>
                       AI confidence is below 70%. The model might be misinterpreting a nutrient deficiency.
                     </p>
+                    
+                    <a 
+                      href={`https://www.google.com/maps/search/?api=1&query=${
+                        activeLocation 
+                          ? `botanical+nursery+garden+expert+in+${encodeURIComponent(activeLocation)}`
+                          : "botanical+nursery+garden+expert+near+me"
+                      }`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="button"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.3rem",
+                        marginTop: "0.75rem",
+                        padding: "0.4rem 0.8rem",
+                        fontSize: "0.8rem",
+                        textDecoration: "none",
+                        backgroundColor: "var(--danger-color)",
+                        color: "white",
+                        borderRadius: "4px",
+                        fontWeight: "bold"
+                      }}
+                    >
+                      🗺️ Find Nearest Plant Experts
+                    </a>
                   </div>
                 )}
 
@@ -464,25 +756,35 @@ export default function PlantDetailPage({ params }: PageProps) {
                         {rem.reasoning}
                       </p>
                       
-                      <button
-                        onClick={() => handleCompleteReminder(rem.id, rem.type)}
-                        style={{
-                          marginTop: "0.5rem",
-                          backgroundColor: "var(--secondary-color)",
-                          border: "none",
-                          color: "white",
-                          padding: "0.25rem 0.5rem",
-                          fontSize: "0.7rem",
-                          fontWeight: "bold",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                          transition: "background-color 0.2s"
-                        }}
-                        onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "var(--primary-color)")}
-                        onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "var(--secondary-color)")}
-                      >
-                        ✓ Complete Task
-                      </button>
+                      {(() => {
+                        const isDue = dueInfo.text.toLowerCase().includes("today") || dueInfo.text.toLowerCase().includes("overdue");
+                        return (
+                          <button
+                            disabled={!isDue}
+                            onClick={() => handleCompleteReminder(rem.id, rem.type)}
+                            style={{
+                              marginTop: "0.5rem",
+                              backgroundColor: isDue ? "var(--secondary-color)" : "var(--border-color)",
+                              border: "none",
+                              color: isDue ? "white" : "var(--text-secondary)",
+                              padding: "0.25rem 0.5rem",
+                              fontSize: "0.7rem",
+                              fontWeight: "bold",
+                              borderRadius: "4px",
+                              cursor: isDue ? "pointer" : "default",
+                              transition: "background-color 0.2s"
+                            }}
+                            onMouseOver={(e) => {
+                              if (isDue) e.currentTarget.style.backgroundColor = "var(--primary-color)";
+                            }}
+                            onMouseOut={(e) => {
+                              if (isDue) e.currentTarget.style.backgroundColor = "var(--secondary-color)";
+                            }}
+                          >
+                            {isDue ? "✓ Complete Task" : "✓ Safe & Up to Date"}
+                          </button>
+                        );
+                      })()}
                     </div>
                   );
                 })}
@@ -540,7 +842,78 @@ export default function PlantDetailPage({ params }: PageProps) {
             </div>
           )}
         </div>
+      </div>
 
+      {/* Location Selection Modal Overlay */}
+      {showLocationModal && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.5)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1000
+        }}>
+          <div className="card" style={{ width: "90%", maxWidth: "400px", marginBottom: 0, padding: "2rem", borderLeft: "5px solid var(--primary-color)" }}>
+            <h2 style={{ color: "var(--primary-color)", fontSize: "1.3rem", marginBottom: "0.5rem" }}>📍 Set Your Location</h2>
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", marginBottom: "1.5rem", lineHeight: "1.4" }}>
+              Enter your City name or Pincode/Zip Code. We use this to fetch local outdoor weather and calibrate watering/misting schedules.
+            </p>
+            
+            <input
+              type="text"
+              placeholder="e.g. Bengaluru, 560001, Chicago"
+              value={locationInput}
+              onChange={(e) => setLocationInput(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "0.75rem",
+                borderRadius: "6px",
+                border: "1px solid var(--border-color)",
+                backgroundColor: "var(--bg-color)",
+                color: "var(--text-primary)",
+                marginBottom: "1.5rem",
+                fontSize: "1rem"
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSaveLocation();
+              }}
+            />
+            
+            <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setShowLocationModal(false)}
+                className="button"
+                style={{
+                  backgroundColor: "transparent",
+                  color: "var(--text-secondary)",
+                  border: "1px solid var(--border-color)",
+                  padding: "0.5rem 1rem",
+                  fontSize: "0.9rem"
+                }}
+              >
+                Cancel
+              </button>
+              
+              <button
+                onClick={handleSaveLocation}
+                disabled={locLoading}
+                className="button"
+                style={{
+                  padding: "0.5rem 1rem",
+                  fontSize: "0.9rem"
+                }}
+              >
+                {locLoading ? "Saving..." : "Save Location"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     </div>
   );

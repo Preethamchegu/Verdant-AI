@@ -32,7 +32,13 @@ export default function NewPlantPage() {
   // Form Fields State
   const [name, setName] = useState<string>("");
   const [ageMonths, setAgeMonths] = useState<string>("1");
-  const [location, setLocation] = useState<string>("Indoor");
+  const [location, setLocation] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("user_location");
+      return saved ? `${saved}, Indoor` : "Indoor";
+    }
+    return "Indoor";
+  });
 
   // Multi-image state
   const [leafPreview, setLeafPreview] = useState<string | null>(null);
