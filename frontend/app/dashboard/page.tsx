@@ -52,6 +52,27 @@ export default function DashboardPage() {
   
   const [error, setError] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState<boolean>(false);
+  const [fontScale, setFontScale] = useState<"normal" | "large" | "xlarge">("normal");
+
+  const applyFontScale = (scale: "normal" | "large" | "xlarge") => {
+    document.body.classList.remove("font-scale-large", "font-scale-xlarge");
+    if (scale === "large") {
+      document.body.classList.add("font-scale-large");
+    } else if (scale === "xlarge") {
+      document.body.classList.add("font-scale-xlarge");
+    }
+  };
+
+  const cycleFontScale = () => {
+    let nextScale: "normal" | "large" | "xlarge" = "normal";
+    if (fontScale === "normal") nextScale = "large";
+    else if (fontScale === "large") nextScale = "xlarge";
+    else nextScale = "normal";
+    
+    setFontScale(nextScale);
+    localStorage.setItem("font_scale", nextScale);
+    applyFontScale(nextScale);
+  };
 
   const fetchWeatherInfo = async (locationStr: string) => {
     if (!token || !locationStr) return;
@@ -146,6 +167,12 @@ export default function DashboardPage() {
       setActiveLocation(saved);
     } else {
       detectIPLocation();
+    }
+    
+    const savedScale = localStorage.getItem("font_scale") as "normal" | "large" | "xlarge";
+    if (savedScale) {
+      setFontScale(savedScale);
+      applyFontScale(savedScale);
     }
   }, []);
 
@@ -392,6 +419,22 @@ export default function DashboardPage() {
             </span>
           )}
           
+          <button
+            onClick={cycleFontScale}
+            className="button"
+            style={{
+              backgroundColor: "transparent",
+              border: "1px solid var(--secondary-color)",
+              color: "var(--text-primary)",
+              padding: "0.4rem 0.8rem",
+              fontSize: "0.85rem",
+              marginRight: "0.25rem"
+            }}
+            aria-label="Adjust text size"
+          >
+            {fontScale === "normal" ? "A Standard" : fontScale === "large" ? "A+ Large" : "A++ Extra Large"}
+          </button>
+
           <button
             onClick={toggleDarkMode}
             className="button"

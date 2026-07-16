@@ -111,6 +111,8 @@ Satellite vegetation monitoring
 
 **[Block 6 Complete]** Created mathematical carbon absorption (CO2 kg) and water conservation (liters saved) calculations tied to plant species and weather reminder intervals deviation. Added endpoints `/plants/impact/summary` and `/plants/{plant_id}/impact`. Updated frontend navbar layout with real-time temperature/humidity weather stats, removed email labels, restructured the dashboard stats metrics into a premium 4-column cards grid, and added local expert search geolocated on Google Maps.
 
+**[Block 7 Complete]** Implemented accessibility text size scaling toggles (Standard, Large, and Extra Large) next to theme switchers, persisting choices in local storage. Added performance optimizations including client-side canvas-based image compression for camera/file uploads (reducing sizes from 4MB to ~100KB) and lazy loading for images. Verified zero-error compilation on Next.js production compiler.
+
 ---
 
 Update Rule

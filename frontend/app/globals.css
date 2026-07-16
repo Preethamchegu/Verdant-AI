@@ -154,3 +154,42 @@ h1, h2, h3, h4, h5, h6 {
   background-color: rgba(64, 145, 108, 0.15);
   color: var(--secondary-color);
 }
+
+/* Accessibility Font Scaling */
+.font-scale-large {
+  font-size: 18px !important;
+}
+.font-scale-large h1 {
+  font-size: 2rem !important;
+}
+.font-scale-large h2 {
+  font-size: 1.5rem !important;
+}
+.font-scale-large p, 
+.font-scale-large span, 
+.font-scale-large button,
+.font-scale-large input,
+.font-scale-large label,
+.font-scale-large li,
+.font-scale-large a {
+  font-size: 1.1rem !important;
+}
+
+.font-scale-xlarge {
+  font-size: 20px !important;
+}
+.font-scale-xlarge h1 {
+  font-size: 2.2rem !important;
+}
+.font-scale-xlarge h2 {
+  font-size: 1.7rem !important;
+}
+.font-scale-xlarge p, 
+.font-scale-xlarge span, 
+.font-scale-xlarge button,
+.font-scale-xlarge input,
+.font-scale-xlarge label,
+.font-scale-xlarge li,
+.font-scale-xlarge a {
+  font-size: 1.25rem !important;
+}

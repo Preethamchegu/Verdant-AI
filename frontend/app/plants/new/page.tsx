@@ -65,15 +65,47 @@ export default function NewPlantPage() {
   }, [user, authLoading, router]);
 
   const processImage = (file: File, callback: (preview: string, b64: string) => void) => {
-    if (file.size > 4 * 1024 * 1024) {
-      setError(`Image "${file.name}" exceeds the 4MB limit.`);
-      return;
-    }
     const reader = new FileReader();
     reader.onloadend = () => {
-      const base64String = reader.result as string;
-      callback(base64String, base64String);
-      setError(null);
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+        
+        // Max dimension bounds: 800px
+        const MAX_SIZE = 800;
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height = Math.round((height * MAX_SIZE) / width);
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width = Math.round((width * MAX_SIZE) / height);
+            height = MAX_SIZE;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          // Compress quality to 75%
+          const compressedBase64 = canvas.toDataURL("image/jpeg", 0.75);
+          callback(compressedBase64, compressedBase64);
+          setError(null);
+        } else {
+          // Fallback if canvas context is unavailable
+          const base64String = reader.result as string;
+          callback(base64String, base64String);
+        }
+      };
+      img.onerror = () => {
+        setError(`Failed to process image "${file.name}".`);
+      };
+      img.src = reader.result as string;
     };
     reader.onerror = () => {
       setError(`Failed to read "${file.name}".`);
@@ -383,7 +415,7 @@ export default function NewPlantPage() {
                 }}>
                   {leafPreview ? (
                     <div style={{ position: "relative", width: "100%", height: "100%" }}>
-                      <img src={leafPreview} alt="Leaf preview" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "6px" }} />
+                      <img src={leafPreview} alt="Leaf preview" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "6px" }} loading="lazy" />
                       <button type="button" onClick={() => clearSlot("leaf")} style={{ position: "absolute", top: "4px", right: "4px", padding: "0.2rem 0.4rem", fontSize: "0.7rem", backgroundColor: "var(--danger-color)", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}>✕</button>
                     </div>
                   ) : (
@@ -415,7 +447,7 @@ export default function NewPlantPage() {
                 }}>
                   {wholePreview ? (
                     <div style={{ position: "relative", width: "100%", height: "100%" }}>
-                      <img src={wholePreview} alt="Whole preview" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "6px" }} />
+                      <img src={wholePreview} alt="Whole preview" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "6px" }} loading="lazy" />
                       <button type="button" onClick={() => clearSlot("whole")} style={{ position: "absolute", top: "4px", right: "4px", padding: "0.2rem 0.4rem", fontSize: "0.7rem", backgroundColor: "var(--danger-color)", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}>✕</button>
                     </div>
                   ) : (
@@ -447,7 +479,7 @@ export default function NewPlantPage() {
                 }}>
                   {backPreview ? (
                     <div style={{ position: "relative", width: "100%", height: "100%" }}>
-                      <img src={backPreview} alt="Back preview" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "6px" }} />
+                      <img src={backPreview} alt="Back preview" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "6px" }} loading="lazy" />
                       <button type="button" onClick={() => clearSlot("back")} style={{ position: "absolute", top: "4px", right: "4px", padding: "0.2rem 0.4rem", fontSize: "0.7rem", backgroundColor: "var(--danger-color)", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}>✕</button>
                     </div>
                   ) : (
@@ -479,7 +511,7 @@ export default function NewPlantPage() {
                 }}>
                   {flowerPreview ? (
                     <div style={{ position: "relative", width: "100%", height: "100%" }}>
-                      <img src={flowerPreview} alt="Flower preview" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "6px" }} />
+                      <img src={flowerPreview} alt="Flower preview" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "6px" }} loading="lazy" />
                       <button type="button" onClick={() => clearSlot("flower")} style={{ position: "absolute", top: "4px", right: "4px", padding: "0.2rem 0.4rem", fontSize: "0.7rem", backgroundColor: "var(--danger-color)", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}>✕</button>
                     </div>
                   ) : (

@@ -85,6 +85,27 @@ interface PlantImpact {
   const [impact, setImpact] = useState<PlantImpact | null>(null);
   const [impactLoading, setImpactLoading] = useState<boolean>(true);
   const [darkMode, setDarkMode] = useState<boolean>(false);
+  const [fontScale, setFontScale] = useState<"normal" | "large" | "xlarge">("normal");
+
+  const applyFontScale = (scale: "normal" | "large" | "xlarge") => {
+    document.body.classList.remove("font-scale-large", "font-scale-xlarge");
+    if (scale === "large") {
+      document.body.classList.add("font-scale-large");
+    } else if (scale === "xlarge") {
+      document.body.classList.add("font-scale-xlarge");
+    }
+  };
+
+  const cycleFontScale = () => {
+    let nextScale: "normal" | "large" | "xlarge" = "normal";
+    if (fontScale === "normal") nextScale = "large";
+    else if (fontScale === "large") nextScale = "xlarge";
+    else nextScale = "normal";
+    
+    setFontScale(nextScale);
+    localStorage.setItem("font_scale", nextScale);
+    applyFontScale(nextScale);
+  };
 
   const fetchWeatherInfo = async (locationStr: string) => {
     if (!token || !locationStr) return;
@@ -120,6 +141,12 @@ interface PlantImpact {
       setActiveLocation(saved);
     } else {
       detectIPLocation();
+    }
+    
+    const savedScale = localStorage.getItem("font_scale") as "normal" | "large" | "xlarge";
+    if (savedScale) {
+      setFontScale(savedScale);
+      applyFontScale(savedScale);
     }
   }, []);
 
@@ -466,6 +493,22 @@ interface PlantImpact {
           )}
           
           <button
+            onClick={cycleFontScale}
+            className="button"
+            style={{
+              backgroundColor: "transparent",
+              border: "1px solid var(--secondary-color)",
+              color: "var(--text-primary)",
+              padding: "0.4rem 0.8rem",
+              fontSize: "0.85rem",
+              marginRight: "0.25rem"
+            }}
+            aria-label="Adjust text size"
+          >
+            {fontScale === "normal" ? "A Standard" : fontScale === "large" ? "A+ Large" : "A++ Extra Large"}
+          </button>
+
+          <button
             onClick={toggleDarkMode}
             className="button"
             style={{
@@ -508,7 +551,7 @@ interface PlantImpact {
         <div className="card" style={{ display: "flex", flexDirection: "row", flexWrap: "wrap", gap: "2rem", alignItems: "center" }}>
           {plant.image_data && (
             <div style={{ width: "150px", height: "150px", borderRadius: "10px", overflow: "hidden", border: "1px solid var(--border-color)", backgroundColor: "var(--bg-color)" }}>
-              <img src={plant.image_data} alt={plant.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <img src={plant.image_data} alt={plant.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} loading="lazy" />
             </div>
           )}
           
