@@ -1,0 +1,156 @@
+/* Verdant AI - Design System Base Stylesheet (Vanilla CSS) */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --primary-color: #1B4332;
+  --secondary-color: #40916C;
+  --bg-color: #F7FAF7;
+  --card-bg: #ffffff;
+  --text-primary: #1B1B1B;
+  --text-secondary: #555555;
+  --border-color: #e0eae5;
+  
+  --warning-color: #D97706;
+  --danger-color: #DC2626;
+  --success-color: #2D6A4F;
+  
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --transition-speed: 0.2s;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-color: #0D1B14;
+    --card-bg: #14281E;
+    --text-primary: #F1F1F1;
+    --text-secondary: #a3b899;
+    --border-color: #1F3F30;
+  }
+}
+
+/* Explicit class-based dark mode support */
+.dark-mode {
+  --bg-color: #0D1B14;
+  --card-bg: #14281E;
+  --text-primary: #F1F1F1;
+  --text-secondary: #a3b899;
+  --border-color: #1F3F30;
+}
+
+.light-mode {
+  --bg-color: #F7FAF7;
+  --card-bg: #ffffff;
+  --text-primary: #1B1B1B;
+  --text-secondary: #555555;
+  --border-color: #e0eae5;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: 16px; /* Minimum body size of 16px for accessibility */
+  line-height: 1.6;
+  transition: background-color var(--transition-speed), color var(--transition-speed);
+  min-height: 100vh;
+}
+
+a {
+  color: var(--secondary-color);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color var(--transition-speed);
+}
+
+a:hover {
+  color: var(--primary-color);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  line-height: 1.25;
+  margin-bottom: 0.5rem;
+}
+
+/* App Layout & Component utilities */
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card {
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  margin-bottom: 1.5rem;
+}
+
+.button {
+  background-color: var(--secondary-color);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: background-color var(--transition-speed), transform 0.1s ease;
+}
+
+.button:hover {
+  background-color: var(--primary-color);
+}
+
+.button:active {
+  transform: scale(0.98);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.badge-success {
+  background-color: rgba(45, 106, 79, 0.15);
+  color: var(--success-color);
+}
+
+.badge-warning {
+  background-color: rgba(217, 119, 6, 0.15);
+  color: var(--warning-color);
+}
+
+.badge-danger {
+  background-color: rgba(220, 38, 38, 0.15);
+  color: var(--danger-color);
+}
+
+.badge-info {
+  background-color: rgba(64, 145, 108, 0.15);
+  color: var(--secondary-color);
+}
