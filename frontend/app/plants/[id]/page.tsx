@@ -33,6 +33,16 @@ interface TimelineEvent {
   meta: string;
 }
 
+interface Reminder {
+  id: number;
+  plant_id: number;
+  type: string;
+  interval_days: number;
+  next_due: string;
+  last_completed?: string;
+  reasoning: string;
+}
+
 interface PageProps {
   params: Promise<{ id: string }>;
 }
@@ -47,7 +57,9 @@ export default function PlantDetailPage({ params }: PageProps) {
   // Core data states
   const [plant, setPlant] = useState<Plant | null>(null);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [remindersLoading, setRemindersLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   // Scan & diagnosis states
@@ -95,9 +107,48 @@ export default function PlantDetailPage({ params }: PageProps) {
     }
   };
 
+  const fetchReminders = async () => {
+    if (!token) return;
+    setRemindersLoading(true);
+    try {
+      const res = await fetch(`http://127.0.0.1:8001/plants/${plantId}/reminders`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setReminders(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch reminders:", err);
+    } finally {
+      setRemindersLoading(false);
+    }
+  };
+
+  const handleCompleteReminder = async (reminderId: number, type: string) => {
+    if (!token) return;
+    try {
+      const res = await fetch(`http://127.0.0.1:8001/plants/${plantId}/reminders/${reminderId}/complete`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        // Refresh everything
+        fetchPlantData();
+        fetchReminders();
+      } else {
+        alert("Failed to complete task.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error completing task.");
+    }
+  };
+
   useEffect(() => {
     if (user && token) {
       fetchPlantData();
+      fetchReminders();
     }
   }, [user, token, plantId]);
 
@@ -120,13 +171,36 @@ export default function PlantDetailPage({ params }: PageProps) {
       const resultData = await res.json();
       setScanResult(resultData);
       
-      // Refresh plant health score and history timeline
+      // Refresh plant health score, history timeline, and reminders
       fetchPlantData();
+      fetchReminders();
     } catch (err: any) {
       console.error(err);
       setScanError(err.message || "Diagnostic check failed.");
     } finally {
       setScanning(false);
+    }
+  };
+
+  // Date formatting utility for relative due dates
+  const getDueText = (nextDueStr: string) => {
+    const nextDue = new Date(nextDueStr);
+    const now = new Date();
+    
+    const d1 = new Date(nextDue.getFullYear(), nextDue.getMonth(), nextDue.getDate());
+    const d2 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    const diffTime = d1.getTime() - d2.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 0) {
+      return { text: `Overdue by ${Math.abs(diffDays)} day(s)`, class: "text-danger" };
+    } else if (diffDays === 0) {
+      return { text: "Due Today", class: "text-warning" };
+    } else if (diffDays === 1) {
+      return { text: "Due Tomorrow", class: "text-primary" };
+    } else {
+      return { text: `Due in ${diffDays} days`, class: "text-secondary" };
     }
   };
 
@@ -343,6 +417,78 @@ export default function PlantDetailPage({ params }: PageProps) {
               </div>
             </div>
           )}
+
+          {/* Care Schedule & Reminders */}
+          <div className="card">
+            <h2 style={{ fontSize: "1.2rem", color: "var(--primary-color)", marginBottom: "1rem" }}>📅 Active Care Plan</h2>
+            
+            {remindersLoading ? (
+              <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>Loading care schedule...</p>
+            ) : reminders.length === 0 ? (
+              <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>No care reminders set. Scan plant or verify connection.</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.8rem" }}>
+                {reminders.map((rem) => {
+                  const dueInfo = getDueText(rem.next_due);
+                  let icon = "💧";
+                  if (rem.type === "fertilizer") icon = "🧪";
+                  if (rem.type === "misting") icon = "💨";
+                  
+                  return (
+                    <div 
+                      key={rem.id} 
+                      style={{ 
+                        padding: "0.75rem", 
+                        border: "1px solid var(--border-color)", 
+                        borderRadius: "8px", 
+                        backgroundColor: "var(--bg-color)" 
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "0.5rem" }}>
+                        <span style={{ fontSize: "0.85rem", fontWeight: "bold", textTransform: "capitalize", color: "var(--text-primary)" }}>
+                          {icon} {rem.type}
+                        </span>
+                        <span 
+                          style={{ 
+                            fontSize: "0.75rem", 
+                            fontWeight: "bold",
+                            color: dueInfo.class === "text-danger" ? "var(--danger-color)" :
+                                   dueInfo.class === "text-warning" ? "var(--warning-color)" : 
+                                   dueInfo.class === "text-primary" ? "var(--secondary-color)" : "var(--text-secondary)"
+                          }}
+                        >
+                          {dueInfo.text}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "0.25rem", fontStyle: "italic", lineHeight: "1.35" }}>
+                        {rem.reasoning}
+                      </p>
+                      
+                      <button
+                        onClick={() => handleCompleteReminder(rem.id, rem.type)}
+                        style={{
+                          marginTop: "0.5rem",
+                          backgroundColor: "var(--secondary-color)",
+                          border: "none",
+                          color: "white",
+                          padding: "0.25rem 0.5rem",
+                          fontSize: "0.7rem",
+                          fontWeight: "bold",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                          transition: "background-color 0.2s"
+                        }}
+                        onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "var(--primary-color)")}
+                        onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "var(--secondary-color)")}
+                      >
+                        ✓ Complete Task
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
         </div>
 

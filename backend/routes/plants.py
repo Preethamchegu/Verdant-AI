@@ -150,6 +150,84 @@ def register_plant(
         "ai_details": ai_details
     }
 
+def check_and_apply_care_penalties(plant_id: int, db: Session) -> int:
+    """
+    Checks if care reminders are overdue and updates the plant's health score.
+    Returns the current/new health score.
+    """
+    from database.models import Reminder, DiseaseHistory, HealthScore
+    
+    # Get all reminders
+    reminders = db.exec(select(Reminder).where(Reminder.plant_id == plant_id)).all()
+    if not reminders:
+        # If no reminders are generated yet, return latest health score or 100
+        latest_health = db.exec(
+            select(HealthScore)
+            .where(HealthScore.plant_id == plant_id)
+            .order_by(HealthScore.calculated_at.desc())
+        ).first()
+        return latest_health.score if latest_health else 100
+
+    # Calculate base score from latest AI diagnosis scan
+    latest_diagnosis = db.exec(
+        select(DiseaseHistory)
+        .where(DiseaseHistory.plant_id == plant_id)
+        .order_by(DiseaseHistory.date_detected.desc())
+    ).first()
+    
+    if latest_diagnosis:
+        is_healthy = "healthy" in latest_diagnosis.condition.lower()
+        if is_healthy:
+            base_score = 100
+        else:
+            base_score = max(10, int(100 - (latest_diagnosis.confidence * 100)))
+    else:
+        base_score = 100
+
+    # Calculate total penalty from overdue reminders
+    total_penalty = 0
+    now = datetime.utcnow()
+    overdue_details = []
+    
+    for r in reminders:
+        if now > r.next_due:
+            seconds_overdue = (now - r.next_due).total_seconds()
+            days_overdue = int(seconds_overdue / 86400) + 1
+            
+            if r.type == "watering":
+                penalty = days_overdue * 5
+            else:
+                penalty = days_overdue * 2
+                
+            total_penalty += penalty
+            overdue_details.append(f"{r.type} overdue by {days_overdue} day(s) (-{penalty})")
+
+    new_score = max(10, base_score - total_penalty)
+
+    latest_health = db.exec(
+        select(HealthScore)
+        .where(HealthScore.plant_id == plant_id)
+        .order_by(HealthScore.calculated_at.desc())
+    ).first()
+
+    # If score changed (or no score exists), insert a new record
+    if not latest_health or latest_health.score != new_score:
+        reasoning = "Health score adjusted based on care adherence. "
+        if overdue_details:
+            reasoning += f"Penalized for: {', '.join(overdue_details)}."
+        else:
+            reasoning += "All care tasks are up to date."
+            
+        db_health = HealthScore(
+            plant_id=plant_id,
+            score=new_score,
+            reasoning=reasoning
+        )
+        db.add(db_health)
+        db.commit()
+        
+    return new_score
+
 @router.get("/", response_model=List[PlantResponse])
 def get_user_plants(
     current_user: User = Depends(get_current_user),
@@ -160,14 +238,8 @@ def get_user_plants(
     
     response_list = []
     for plant in plants:
-        # Fetch the latest health score for each plant
-        latest_health = db.exec(
-            select(HealthScore)
-            .where(HealthScore.plant_id == plant.id)
-            .order_by(HealthScore.calculated_at.desc())
-        ).first()
-        
-        score = latest_health.score if latest_health else 100
+        # Run care adherence updates dynamically on list fetch
+        score = check_and_apply_care_penalties(plant.id, db)
         
         response_list.append(
             PlantResponse(
@@ -201,13 +273,8 @@ def get_plant_details(
     image = db.exec(select(PlantImage).where(PlantImage.plant_id == plant_id).order_by(PlantImage.created_at.desc())).first()
     image_str = image.image_data if image else ""
     
-    # 3. Fetch latest health score
-    latest_health = db.exec(
-        select(HealthScore)
-        .where(HealthScore.plant_id == plant_id)
-        .order_by(HealthScore.calculated_at.desc())
-    ).first()
-    score = latest_health.score if latest_health else 100
+    # 3. Calculate latest health score with dynamic care penalties
+    score = check_and_apply_care_penalties(plant_id, db)
     
     return PlantDetailResponse(
         id=plant.id,
@@ -279,13 +346,16 @@ def diagnose_plant(
     db.add(db_health)
     db.commit()
     
+    # Run care penalties check to compute the active health score
+    final_score = check_and_apply_care_penalties(plant_id, db)
+    
     return {
         "condition": scan_res["clean_name"],
         "is_healthy": scan_res["is_healthy"],
         "confidence": scan_res["confidence"],
         "needs_expert": scan_res["needs_expert"],
         "treatments": scan_res["treatments"],
-        "health_score": new_score
+        "health_score": final_score
     }
 
 @router.get("/{plant_id}/history", response_model=List[TimelineEvent])

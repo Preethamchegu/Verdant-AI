@@ -56,6 +56,8 @@ def health_check(db: Session = Depends(get_session)):
 # Import and register routers AFTER app and middleware are fully configured
 from routes.auth import router as auth_router
 from routes.plants import router as plants_router
+from routes.reminders import router as reminders_router
 
 app.include_router(auth_router)
 app.include_router(plants_router)
+app.include_router(reminders_router)
