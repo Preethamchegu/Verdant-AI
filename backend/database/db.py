@@ -10,7 +10,7 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 
 if not DATABASE_URL:
     # Use SQLite for local development if PostgreSQL database URL is not provided
-    DATABASE_URL = "sqlite:///c:/Users/chegu/OneDrive/Desktop/Plants/plants.db"
+    DATABASE_URL = "sqlite:///./plants.db"
 else:
     # SQLAlchemy requires postgresql:// instead of postgres://
     if DATABASE_URL.startswith("postgres://"):
