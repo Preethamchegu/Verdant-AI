@@ -17,6 +17,11 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState<boolean>(false);
 
+  const applyTheme = (isDark: boolean) => {
+    document.body.classList.toggle("dark-mode", isDark);
+    document.body.classList.toggle("light-mode", !isDark);
+  };
+
   // Fetch backend health endpoint on load
   const checkHealth = async () => {
     setLoading(true);
@@ -40,24 +45,24 @@ export default function Home() {
   useEffect(() => {
     checkHealth();
 
-    // Check system preference for dark mode
-    const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    if (systemPrefersDark) {
-      setDarkMode(true);
-      document.body.classList.add("dark-mode");
+    const savedTheme = window.localStorage.getItem("theme_mode");
+    if (savedTheme === "dark" || savedTheme === "light") {
+      const isDark = savedTheme === "dark";
+      setDarkMode(isDark);
+      applyTheme(isDark);
+      return;
     }
+
+    const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    setDarkMode(systemPrefersDark);
+    applyTheme(systemPrefersDark);
   }, []);
 
   const toggleDarkMode = () => {
     const nextDark = !darkMode;
     setDarkMode(nextDark);
-    if (nextDark) {
-      document.body.classList.add("dark-mode");
-      document.body.classList.remove("light-mode");
-    } else {
-      document.body.classList.add("light-mode");
-      document.body.classList.remove("dark-mode");
-    }
+    applyTheme(nextDark);
+    window.localStorage.setItem("theme_mode", nextDark ? "dark" : "light");
   };
 
   return (

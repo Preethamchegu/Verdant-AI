@@ -113,6 +113,8 @@ Satellite vegetation monitoring
 
 **[Block 7 Complete]** Implemented accessibility text size scaling toggles (Standard, Large, and Extra Large) next to theme switchers, persisting choices in local storage. Added performance optimizations including client-side canvas-based image compression for camera/file uploads (reducing sizes from 4MB to ~100KB) and lazy loading for images. Verified zero-error compilation on Next.js production compiler.
 
+**[Block 8 Complete]** Developed an inline local gardening supplies and chemicals store finder on the plant details screen. It parses instructions from active leaf diagnosis treatment guidelines, identifies the needed product (e.g. copper fungicide, sulfur, neem oil, pruning tools), and generates direct Google Maps search link triggers geolocated to the user's saved/active city. Verified Next.js compiler builds successfully with zero errors.
+
 ---
 
 Update Rule

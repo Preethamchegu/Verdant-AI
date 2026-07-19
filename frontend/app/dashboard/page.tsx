@@ -272,21 +272,29 @@ export default function DashboardPage() {
     }
   }, [user, token]);
 
+  const applyTheme = (isDark: boolean) => {
+    document.body.classList.toggle("dark-mode", isDark);
+    document.body.classList.toggle("light-mode", !isDark);
+  };
+
   useEffect(() => {
-    // Set initial dark mode state from class
+    const savedTheme = window.localStorage.getItem("theme_mode");
+    if (savedTheme === "dark" || savedTheme === "light") {
+      const isDark = savedTheme === "dark";
+      setDarkMode(isDark);
+      applyTheme(isDark);
+      return;
+    }
+
     setDarkMode(document.body.classList.contains("dark-mode"));
+    applyTheme(document.body.classList.contains("dark-mode"));
   }, []);
 
   const toggleDarkMode = () => {
     const nextDark = !darkMode;
     setDarkMode(nextDark);
-    if (nextDark) {
-      document.body.classList.add("dark-mode");
-      document.body.classList.remove("light-mode");
-    } else {
-      document.body.classList.add("light-mode");
-      document.body.classList.remove("dark-mode");
-    }
+    applyTheme(nextDark);
+    window.localStorage.setItem("theme_mode", nextDark ? "dark" : "light");
   };
 
   // Date formatting utility for relative due dates

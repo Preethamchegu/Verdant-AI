@@ -107,6 +107,18 @@ interface PlantImpact {
     applyFontScale(nextScale);
   };
 
+  const getSearchTerm = (treatment: string) => {
+    const t = treatment.toLowerCase();
+    if (t.includes("neem oil")) return "neem oil spray";
+    if (t.includes("copper")) return "copper fungicide";
+    if (t.includes("sulfur")) return "sulfur fungicide";
+    if (t.includes("insecticidal")) return "insecticidal soap";
+    if (t.includes("fertilizer") || t.includes("fertiliz")) return "plant fertilizer";
+    if (t.includes("prun") || t.includes("shear")) return "pruning shears";
+    if (t.includes("soap")) return "castile soap";
+    return "garden center plant nursery";
+  };
+
   const fetchWeatherInfo = async (locationStr: string) => {
     if (!token || !locationStr) return;
     try {
@@ -134,8 +146,22 @@ interface PlantImpact {
     }
   }, [user, authLoading, router]);
 
+  const applyTheme = (isDark: boolean) => {
+    document.body.classList.toggle("dark-mode", isDark);
+    document.body.classList.toggle("light-mode", !isDark);
+  };
+
   useEffect(() => {
-    setDarkMode(document.body.classList.contains("dark-mode"));
+    const savedTheme = window.localStorage.getItem("theme_mode");
+    if (savedTheme === "dark" || savedTheme === "light") {
+      const isDark = savedTheme === "dark";
+      setDarkMode(isDark);
+      applyTheme(isDark);
+    } else {
+      setDarkMode(document.body.classList.contains("dark-mode"));
+      applyTheme(document.body.classList.contains("dark-mode"));
+    }
+
     const saved = localStorage.getItem("user_location");
     if (saved) {
       setActiveLocation(saved);
@@ -153,13 +179,8 @@ interface PlantImpact {
   const toggleDarkMode = () => {
     const nextDark = !darkMode;
     setDarkMode(nextDark);
-    if (nextDark) {
-      document.body.classList.add("dark-mode");
-      document.body.classList.remove("light-mode");
-    } else {
-      document.body.classList.add("light-mode");
-      document.body.classList.remove("dark-mode");
-    }
+    applyTheme(nextDark);
+    window.localStorage.setItem("theme_mode", nextDark ? "dark" : "light");
   };
 
   const resolvePincode = async (pincode: string): Promise<string> => {
@@ -739,12 +760,38 @@ interface PlantImpact {
                 {scanResult?.treatments && (
                   <div>
                     <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", textTransform: "uppercase", display: "block", marginBottom: "0.4rem" }}>
-                      Treatment Guidelines
+                      Treatment Guidelines & Supplies Locator
                     </span>
-                    <ul style={{ paddingLeft: "1.25rem", margin: 0, fontSize: "0.9rem", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                      {scanResult.treatments.map((step, idx) => (
-                        <li key={idx} style={{ lineHeight: "1.4" }}>{step}</li>
-                      ))}
+                    <ul style={{ paddingLeft: "1.25rem", margin: 0, fontSize: "0.9rem", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+                      {scanResult.treatments.map((step, idx) => {
+                        const searchTerm = getSearchTerm(step);
+                        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(searchTerm + " near " + (activeLocation || "me"))}`;
+                        return (
+                          <li key={idx} style={{ lineHeight: "1.45" }}>
+                            <span>{step}</span>
+                            <a 
+                              href={mapsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "0.25rem",
+                                marginLeft: "0.5rem",
+                                fontSize: "0.78rem",
+                                color: "var(--secondary-color)",
+                                textDecoration: "underline",
+                                fontWeight: "600",
+                                cursor: "pointer"
+                              }}
+                              onMouseOver={(e) => (e.currentTarget.style.color = "var(--primary-color)")}
+                              onMouseOut={(e) => (e.currentTarget.style.color = "var(--secondary-color)")}
+                            >
+                              🛒 Find store
+                            </a>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                 )}
