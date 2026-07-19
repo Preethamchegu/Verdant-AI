@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/auth-context";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { API_BASE_URL } from "@/app/config";
 
 interface Plant {
   id: number;
@@ -77,7 +78,7 @@ export default function DashboardPage() {
   const fetchWeatherInfo = async (locationStr: string) => {
     if (!token || !locationStr) return;
     try {
-      const res = await fetch(`http://127.0.0.1:8001/plants/weather/current?location=${encodeURIComponent(locationStr)}`, {
+      const res = await fetch(`${API_BASE_URL}/plants/weather/current?location=${encodeURIComponent(locationStr)}`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (res.ok) {
@@ -196,7 +197,7 @@ export default function DashboardPage() {
     setPlantsLoading(true);
     setError(null);
     try {
-      const res = await fetch("http://127.0.0.1:8001/plants/", {
+      const res = await fetch(`${API_BASE_URL}/plants/`, {
         headers: {
           "Authorization": `Bearer ${token}`
         }
@@ -219,7 +220,7 @@ export default function DashboardPage() {
     if (!token) return;
     setRemindersLoading(true);
     try {
-      const res = await fetch("http://127.0.0.1:8001/plants/reminders/all", {
+      const res = await fetch(`${API_BASE_URL}/plants/reminders/all`, {
         headers: {
           "Authorization": `Bearer ${token}`
         }
@@ -239,7 +240,7 @@ export default function DashboardPage() {
   const fetchImpactSummary = async () => {
     if (!token) return;
     try {
-      const res = await fetch("http://127.0.0.1:8001/plants/impact/summary", {
+      const res = await fetch(`${API_BASE_URL}/plants/impact/summary`, {
         headers: {
           "Authorization": `Bearer ${token}`
         }
@@ -256,7 +257,7 @@ export default function DashboardPage() {
   const handleCompleteReminder = async (plantId: number, reminderId: number, type: string) => {
     if (!token) return;
     try {
-      const res = await fetch(`http://127.0.0.1:8001/plants/${plantId}/reminders/${reminderId}/complete`, {
+      const res = await fetch(`${API_BASE_URL}/plants/${plantId}/reminders/${reminderId}/complete`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`

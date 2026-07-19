@@ -4,6 +4,7 @@ import React, { useEffect, useState, use } from "react";
 import { useAuth } from "../../context/auth-context";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { API_BASE_URL } from "@/app/config";
 
 interface Plant {
   id: number;
@@ -122,7 +123,7 @@ interface PlantImpact {
   const fetchWeatherInfo = async (locationStr: string) => {
     if (!token || !locationStr) return;
     try {
-      const res = await fetch(`http://127.0.0.1:8001/plants/weather/current?location=${encodeURIComponent(locationStr)}`, {
+      const res = await fetch(`${API_BASE_URL}/plants/weather/current?location=${encodeURIComponent(locationStr)}`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (res.ok) {
@@ -262,7 +263,7 @@ interface PlantImpact {
     setError(null);
     try {
       // 1. Fetch plant details
-      const plantRes = await fetch(`http://127.0.0.1:8001/plants/${plantId}`, {
+      const plantRes = await fetch(`${API_BASE_URL}/plants/${plantId}`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (!plantRes.ok) {
@@ -275,7 +276,7 @@ interface PlantImpact {
       setPlant(plantData);
 
       // 2. Fetch history timeline
-      const timelineRes = await fetch(`http://127.0.0.1:8001/plants/${plantId}/history`, {
+      const timelineRes = await fetch(`${API_BASE_URL}/plants/${plantId}/history`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (timelineRes.ok) {
@@ -294,7 +295,7 @@ interface PlantImpact {
     if (!token) return;
     setRemindersLoading(true);
     try {
-      const res = await fetch(`http://127.0.0.1:8001/plants/${plantId}/reminders`, {
+      const res = await fetch(`${API_BASE_URL}/plants/${plantId}/reminders`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (res.ok) {
@@ -312,7 +313,7 @@ interface PlantImpact {
     if (!token) return;
     setImpactLoading(true);
     try {
-      const res = await fetch(`http://127.0.0.1:8001/plants/${plantId}/impact`, {
+      const res = await fetch(`${API_BASE_URL}/plants/${plantId}/impact`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (res.ok) {
@@ -329,7 +330,7 @@ interface PlantImpact {
   const handleCompleteReminder = async (reminderId: number, type: string) => {
     if (!token) return;
     try {
-      const res = await fetch(`http://127.0.0.1:8001/plants/${plantId}/reminders/${reminderId}/complete`, {
+      const res = await fetch(`${API_BASE_URL}/plants/${plantId}/reminders/${reminderId}/complete`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}` }
       });
@@ -361,7 +362,7 @@ interface PlantImpact {
     setScanError(null);
     setScanResult(null);
     try {
-      const res = await fetch(`http://127.0.0.1:8001/plants/${plantId}/diagnose`, {
+      const res = await fetch(`${API_BASE_URL}/plants/${plantId}/diagnose`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}` }
       });

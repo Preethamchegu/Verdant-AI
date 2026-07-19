@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { API_BASE_URL } from "@/app/config";
 
 interface User {
   id: number;
@@ -42,7 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch("http://127.0.0.1:8001/auth/login", {
+      const res = await fetch(`${API_BASE_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -75,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch("http://127.0.0.1:8001/auth/signup", {
+      const res = await fetch(`${API_BASE_URL}/auth/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),

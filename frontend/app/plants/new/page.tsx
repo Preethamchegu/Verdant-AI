@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "../../context/auth-context";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { API_BASE_URL } from "@/app/config";
 
 interface SpeciesDetails {
   species: string;
@@ -152,7 +153,7 @@ export default function NewPlantPage() {
 
     try {
       // Direct API fetch to the backend plants registration endpoint
-      const res = await fetch("http://127.0.0.1:8001/plants/register", {
+      const res = await fetch(`${API_BASE_URL}/plants/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

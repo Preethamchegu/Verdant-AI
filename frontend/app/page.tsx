@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "./context/auth-context";
+import { API_BASE_URL } from "@/app/config";
 
 interface HealthStatus {
   status: string;
@@ -27,7 +28,7 @@ export default function Home() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("http://127.0.0.1:8001/health");
+      const res = await fetch(`${API_BASE_URL}/health`);
       if (!res.ok) {
         throw new Error(`HTTP error! Status: ${res.status}`);
       }
