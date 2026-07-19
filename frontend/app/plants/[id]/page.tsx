@@ -747,7 +747,7 @@ interface PlantImpact {
                       href={`https://www.google.com/maps/search/?api=1&query=${
                         encodeURIComponent(
                           "botanical nursery garden expert " + 
-                          (typeof window !== "undefined" ? localStorage.getItem("user_pincode") || activeLocation || "near me" : "near me")
+                          (typeof window !== "undefined" ? localStorage.getItem("user_location") || activeLocation || "near me" : "near me")
                         )
                       }`}
                       target="_blank"
@@ -781,8 +781,8 @@ interface PlantImpact {
                     <ul style={{ paddingLeft: "1.25rem", margin: 0, fontSize: "0.9rem", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
                       {scanResult.treatments.map((step, idx) => {
                         const searchTerm = getSearchTerm(step);
-                        const savedPincode = typeof window !== "undefined" ? localStorage.getItem("user_pincode") : null;
-                        const locationQuery = savedPincode ? savedPincode : (activeLocation || "me");
+                        const savedLocation = typeof window !== "undefined" ? localStorage.getItem("user_location") : null;
+                        const locationQuery = savedLocation || activeLocation || "near me";
                         const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(searchTerm + " " + locationQuery)}`;
                         return (
                           <li key={idx} style={{ lineHeight: "1.45" }}>
