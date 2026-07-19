@@ -25,11 +25,13 @@ app = FastAPI(
 )
 
 # Configure CORS
-origins = ["http://localhost:3000", "http://127.0.0.1:3000", "*"]
+# Since we use Bearer tokens (Authorization headers) instead of cookies, allow_credentials=True is not strictly required.
+# To make it easy for Vercel preview/production deployments, we set allow_origins=["*"] and allow_credentials=False.
+origins = ["*"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
