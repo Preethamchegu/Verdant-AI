@@ -218,6 +218,11 @@ interface PlantImpact {
           const locStr = `${data.city}, ${data.country_code || data.country_name}`;
           localStorage.setItem("user_location", locStr);
           setActiveLocation(locStr);
+          if (data.postal) {
+            localStorage.setItem("user_pincode", data.postal);
+          } else {
+            localStorage.removeItem("user_pincode");
+          }
         }
       }
     } catch (err) {
@@ -226,12 +231,21 @@ interface PlantImpact {
   };
 
   const handleSaveLocation = async () => {
-    if (!locationInput.trim()) return;
+    const trimmedInput = locationInput.trim();
+    if (!trimmedInput) return;
     setLocLoading(true);
     try {
-      const resolved = await resolvePincode(locationInput);
+      const resolved = await resolvePincode(trimmedInput);
       localStorage.setItem("user_location", resolved);
       setActiveLocation(resolved);
+      
+      const isNumericPincode = /^\d{5}$/.test(trimmedInput) || /^\d{6}$/.test(trimmedInput);
+      if (isNumericPincode) {
+        localStorage.setItem("user_pincode", trimmedInput);
+      } else {
+        localStorage.removeItem("user_pincode");
+      }
+      
       setShowLocationModal(false);
       // Refresh reminders
       fetchReminders();
@@ -730,9 +744,10 @@ interface PlantImpact {
                     
                     <a 
                       href={`https://www.google.com/maps/search/?api=1&query=${
-                        activeLocation 
-                          ? `botanical+nursery+garden+expert+in+${encodeURIComponent(activeLocation)}`
-                          : "botanical+nursery+garden+expert+near+me"
+                        encodeURIComponent(
+                          "botanical nursery garden expert " + 
+                          (typeof window !== "undefined" ? localStorage.getItem("user_pincode") || activeLocation || "near me" : "near me")
+                        )
                       }`}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -765,7 +780,9 @@ interface PlantImpact {
                     <ul style={{ paddingLeft: "1.25rem", margin: 0, fontSize: "0.9rem", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
                       {scanResult.treatments.map((step, idx) => {
                         const searchTerm = getSearchTerm(step);
-                        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(searchTerm + " near " + (activeLocation || "me"))}`;
+                        const savedPincode = typeof window !== "undefined" ? localStorage.getItem("user_pincode") : null;
+                        const locationQuery = savedPincode ? savedPincode : (activeLocation || "me");
+                        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(searchTerm + " " + locationQuery)}`;
                         return (
                           <li key={idx} style={{ lineHeight: "1.45" }}>
                             <span>{step}</span>

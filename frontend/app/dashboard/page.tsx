@@ -136,6 +136,11 @@ export default function DashboardPage() {
           const locStr = `${data.city}, ${data.country_code || data.country_name}`;
           localStorage.setItem("user_location", locStr);
           setActiveLocation(locStr);
+          if (data.postal) {
+            localStorage.setItem("user_pincode", data.postal);
+          } else {
+            localStorage.removeItem("user_pincode");
+          }
         }
       }
     } catch (err) {
@@ -144,12 +149,21 @@ export default function DashboardPage() {
   };
 
   const handleSaveLocation = async () => {
-    if (!locationInput.trim()) return;
+    const trimmedInput = locationInput.trim();
+    if (!trimmedInput) return;
     setLocLoading(true);
     try {
-      const resolved = await resolvePincode(locationInput);
+      const resolved = await resolvePincode(trimmedInput);
       localStorage.setItem("user_location", resolved);
       setActiveLocation(resolved);
+      
+      const isNumericPincode = /^\d{5}$/.test(trimmedInput) || /^\d{6}$/.test(trimmedInput);
+      if (isNumericPincode) {
+        localStorage.setItem("user_pincode", trimmedInput);
+      } else {
+        localStorage.removeItem("user_pincode");
+      }
+      
       setShowLocationModal(false);
       // Refresh reminders and impact
       fetchReminders();
